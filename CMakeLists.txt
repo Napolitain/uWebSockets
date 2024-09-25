@@ -57,7 +57,7 @@ option(WITH_LIBUV "Build with libuv event loop" OFF)
 option(WITH_ASIO "Build with ASIO event loop" OFF)
 
 if (WITH_LIBUV)
-    find_package(LibUV REQUIRED)
+    find_package(libuv CONFIG REQUIRED)
     set(LDFLAGS "${LDFLAGS} ${LIBUV_LIBRARIES}")
 elseif (WITH_ASIO)
     set(CXXFLAGS "${CXXFLAGS} -pthread")
@@ -72,8 +72,8 @@ if (WITH_ASAN)
 endif()
 
 # Include paths
-#include_directories(src)
-#include_directories(uSockets/src)
+include_directories(src)
+include_directories(uSockets/src)
 
 # uSockets target (as it was in your Makefile)
 add_subdirectory(uSockets)
