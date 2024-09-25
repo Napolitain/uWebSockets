@@ -4,15 +4,14 @@ cmake_minimum_required(VERSION 3.10)
 if (NOT CMAKE_PROJECT_NAME)
     project(uWebSockets)
 endif()
+message(STATUS "Building uWebSockets")
 
 # Compiler flags
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Set some default CXXFLAGS and LDFLAGS
-set(CXXFLAGS "-march=native -O3 -Wpedantic -Wall -Wextra -Wsign-conversion -Wconversion")
-set(LDFLAGS "")
+set(LDFLAGS_UWS "")
 
 # If not building with LTO, remove the flag
 option(WITH_LTO "Enable Link-Time Optimization" ON)
@@ -24,7 +23,7 @@ endif()
 option(WITH_ZLIB "Enable Zlib (permessage-deflate)" ON)
 if (WITH_ZLIB)
     find_package(ZLIB REQUIRED)
-    set(LDFLAGS "${LDFLAGS} ${ZLIB_LIBRARIES}")
+    set(LDFLAGS_UWS "${LDFLAGS_UWS} ${ZLIB_LIBRARIES}")
 else()
     add_definitions(-DUWS_NO_ZLIB)
 endif()
@@ -36,20 +35,20 @@ option(WITH_WOLFSSL "Build with WolfSSL support" OFF)
 
 if (WITH_BORINGSSL)
     include_directories(uSockets/boringssl/include)
-    set(LDFLAGS "${LDFLAGS} uSockets/boringssl/build/ssl/libssl.a uSockets/boringssl/build/crypto/libcrypto.a")
+    set(LDFLAGS_UWS "${LDFLAGS_UWS} uSockets/boringssl/build/ssl/libssl.a uSockets/boringssl/build/crypto/libcrypto.a")
     add_definitions(-DLIBUS_USE_OPENSSL)
 elseif (WITH_OPENSSL)
     find_package(OpenSSL REQUIRED)
-    set(LDFLAGS "${LDFLAGS} ${OPENSSL_LIBRARIES}")
+    set(LDFLAGS_UWS "${LDFLAGS_UWS} ${OPENSSL_LIBRARIES}")
 elseif (WITH_WOLFSSL)
-    set(LDFLAGS "${LDFLAGS} -L/usr/local/lib -lwolfssl")
+    set(LDFLAGS_UWS "${LDFLAGS_UWS} -L/usr/local/lib -lwolfssl")
 endif()
 
 # Optionally build with QUIC (Http3)
 option(WITH_QUIC "Build with Http3 QUIC support" OFF)
 if (WITH_QUIC)
     add_definitions(-DLIBUS_USE_QUIC)
-    set(LDFLAGS "${LDFLAGS} -pthread -lz -lm uSockets/lsquic/src/liblsquic/liblsquic.a")
+    set(LDFLAGS_UWS "${LDFLAGS_UWS} -pthread -lz -lm uSockets/lsquic/src/liblsquic/liblsquic.a")
 endif()
 
 # Optionally build with libuv or ASIO as event loop
@@ -58,17 +57,17 @@ option(WITH_ASIO "Build with ASIO event loop" OFF)
 
 if (WITH_LIBUV)
     find_package(libuv CONFIG REQUIRED)
-    set(LDFLAGS "${LDFLAGS} ${LIBUV_LIBRARIES}")
+    set(LDFLAGS_UWS "${LDFLAGS_UWS} ${LIBUV_LIBRARIES}")
 elseif (WITH_ASIO)
     set(CXXFLAGS "${CXXFLAGS} -pthread")
-    set(LDFLAGS "${LDFLAGS} -lpthread")
+    set(LDFLAGS_UWS "${LDFLAGS_UWS} -lpthread")
 endif()
 
 # Optionally build with AddressSanitizer (ASAN)
 option(WITH_ASAN "Build with AddressSanitizer" OFF)
 if (WITH_ASAN)
     set(CXXFLAGS "${CXXFLAGS} -fsanitize=address -g")
-    set(LDFLAGS "${LDFLAGS} -lasan")
+    set(LDFLAGS_UWS "${LDFLAGS_UWS} -lasan")
 endif()
 
 # Include paths
@@ -82,12 +81,14 @@ add_subdirectory(uSockets)
 set(EXAMPLE_FILES "CachingApp" "HelloWorldThreaded" "Http3Server" "Broadcast" "HelloWorld" "Crc32" "ServerName"
         "EchoServer" "BroadcastingEchoServer" "UpgradeSync" "UpgradeAsync" "ParameterRoutes")
 
+string(STRIP "${LDFLAGS_UWS}" LDFLAGS_STRIPPED_UWS)  # Strip leading/trailing whitespace
+
 foreach(EXAMPLE_FILE IN LISTS EXAMPLE_FILES)
-    string(STRIP "${LDFLAGS}" LDFLAGS_STRIPPED)  # Strip leading/trailing whitespace
     add_executable(${EXAMPLE_FILE} examples/${EXAMPLE_FILE}.cpp)
-    target_link_libraries(${EXAMPLE_FILE} uSockets ${LDFLAGS_STRIPPED})
+    target_link_libraries(${EXAMPLE_FILE} uSockets ${LDFLAGS_STRIPPED_UWS})
     target_compile_options(${EXAMPLE_FILE} PRIVATE ${CXXFLAGS})
 endforeach()
+
 
 # Install target (mimicking the 'install' section of your Makefile)
 install(DIRECTORY src/ DESTINATION ${CMAKE_INSTALL_PREFIX}/include/uWebSockets)
@@ -97,3 +98,5 @@ install(DIRECTORY src/ DESTINATION ${CMAKE_INSTALL_PREFIX}/include/uWebSockets)
 
 # Default target is all
 add_custom_target(all_examples DEPENDS ${EXAMPLE_FILES})
+
+#add_subdirectory(benchmarks)
