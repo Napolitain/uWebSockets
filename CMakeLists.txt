@@ -1,10 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 
-# If project is not already defined, define it (for monorepo)
-if (NOT CMAKE_PROJECT_NAME)
-    project(uWebSockets)
-endif()
-message(STATUS "Building uWebSockets")
+project(uWebSockets)
+message(STATUS "Building ${PROJECT_NAME}")
 
 # Compiler flags
 set(CMAKE_CXX_STANDARD 20)
@@ -84,9 +81,10 @@ set(EXAMPLE_FILES "CachingApp" "HelloWorldThreaded" "Http3Server" "Broadcast" "H
 string(STRIP "${LDFLAGS_UWS}" LDFLAGS_STRIPPED_UWS)  # Strip leading/trailing whitespace
 
 foreach(EXAMPLE_FILE IN LISTS EXAMPLE_FILES)
-    add_executable(${EXAMPLE_FILE} examples/${EXAMPLE_FILE}.cpp)
-    target_link_libraries(${EXAMPLE_FILE} uSockets ${LDFLAGS_STRIPPED_UWS})
-    target_compile_options(${EXAMPLE_FILE} PRIVATE ${CXXFLAGS})
+    set(target_name ${PROJECT_NAME}${EXAMPLE_FILE})
+    add_executable(${target_name} examples/${EXAMPLE_FILE}.cpp)
+    target_link_libraries(${target_name} uSockets ${LDFLAGS_STRIPPED_UWS})
+    target_compile_options(${target_name} PRIVATE ${CXXFLAGS})
 endforeach()
 
 
@@ -99,4 +97,10 @@ install(DIRECTORY src/ DESTINATION ${CMAKE_INSTALL_PREFIX}/include/uWebSockets)
 # Default target is all
 add_custom_target(all_examples DEPENDS ${EXAMPLE_FILES})
 
-#add_subdirectory(benchmarks)
+add_subdirectory(tests)
+add_subdirectory(benchmarks)
+# If linux, add epoll benchmarker
+if (UNIX AND NOT APPLE)
+    add_subdirectory(libEpollBenchmarker)
+endif ()
+
