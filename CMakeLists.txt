@@ -7,6 +7,10 @@ message(STATUS "Building ${PROJECT_NAME}")
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+# Set some default CXXFLAGS and LDFLAGS if not already set
+if (NOT DEFINED CXXFLAGS)
+    set(CXXFLAGS "-march=native -O3 -Wpedantic -Wall -Wextra -Wsign-conversion -Wconversion")
+endif()
 
 set(LDFLAGS_UWS "")
 
@@ -78,10 +82,11 @@ add_subdirectory(uSockets)
 set(EXAMPLE_FILES "CachingApp" "HelloWorldThreaded" "Http3Server" "Broadcast" "HelloWorld" "Crc32" "ServerName"
         "EchoServer" "BroadcastingEchoServer" "UpgradeSync" "UpgradeAsync" "ParameterRoutes")
 
+
 string(STRIP "${LDFLAGS_UWS}" LDFLAGS_STRIPPED_UWS)  # Strip leading/trailing whitespace
 
 foreach(EXAMPLE_FILE IN LISTS EXAMPLE_FILES)
-    set(target_name ${PROJECT_NAME}${EXAMPLE_FILE})
+    set(target_name ${EXAMPLE_FILE})
     add_executable(${target_name} examples/${EXAMPLE_FILE}.cpp)
     target_link_libraries(${target_name} uSockets ${LDFLAGS_STRIPPED_UWS})
     target_compile_options(${target_name} PRIVATE ${CXXFLAGS})
