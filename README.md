@@ -78,6 +78,13 @@ In a nutshell:
 * `WITH_WOLFSSL=1 WITH_LIBUV=1 make examples` builds examples utilizing WolfSSL and libuv
 * `WITH_OPENSSL=1 make examples` builds examples utilizing OpenSSL and the native kernel
 
+Alternatively, you can use CMake which supports the same flags:
+
+* `cmake -DWITH_OPENSSL=ON -B build && cmake --build build` builds with OpenSSL support
+* `cmake -DWITH_LIBUV=ON -DWITH_WOLFSSL=ON -B build && cmake --build build` builds with WolfSSL and libuv
+* `cmake -DBUILD_EXAMPLES=OFF -B build` builds without examples
+* `cmake --install build --prefix /usr/local` installs headers and libraries
+
 See µSockets for an up-to-date list of flags and a more detailed explanation.
 
 ### :handshake: Permissively licensed
