@@ -30,8 +30,121 @@ option(BUILD_EXAMPLES "Build example programs" ON)
 include(GNUInstallDirs)
 set(UWEBSOCKETS_INSTALL_INCLUDEDIR "${CMAKE_INSTALL_INCLUDEDIR}/uWebSockets")
 
-# Add uSockets subdirectory
-add_subdirectory(uSockets)
+# Build uSockets library inline (since it's a submodule without CMakeLists.txt)
+set(USOCKETS_SOURCES
+    uSockets/src/bsd.c
+    uSockets/src/context.c
+    uSockets/src/loop.c
+    uSockets/src/socket.c
+    uSockets/src/udp.c
+    uSockets/src/eventing/epoll_kqueue.c
+    uSockets/src/eventing/gcd.c
+    uSockets/src/eventing/libuv.c
+    uSockets/src/crypto/openssl.c
+    uSockets/src/quic.c
+    uSockets/src/io_uring/io_context.c
+    uSockets/src/io_uring/io_loop.c
+    uSockets/src/io_uring/io_socket.c
+)
+
+# Add C++ sources if using OpenSSL or BoringSSL
+if(WITH_OPENSSL OR WITH_BORINGSSL)
+    list(APPEND USOCKETS_SOURCES uSockets/src/crypto/sni_tree.cpp)
+endif()
+
+# Add ASIO C++ source if using ASIO
+if(WITH_ASIO)
+    list(APPEND USOCKETS_SOURCES uSockets/src/eventing/asio.cpp)
+endif()
+
+# Create uSockets static library
+add_library(uSockets STATIC ${USOCKETS_SOURCES})
+add_library(uSockets::uSockets ALIAS uSockets)
+
+# Set include directories for uSockets
+target_include_directories(uSockets
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/uSockets/src>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/uSockets>
+)
+
+# Compiler flags for uSockets
+target_compile_options(uSockets PRIVATE -O3)
+
+# Add LTO if enabled and not MSVC
+if(WITH_LTO AND NOT MSVC)
+    target_compile_options(uSockets PRIVATE -flto)
+endif()
+
+# Configure uSockets based on options
+if(WITH_BORINGSSL)
+    target_compile_definitions(uSockets PUBLIC LIBUS_USE_OPENSSL)
+    target_include_directories(uSockets PUBLIC uSockets/boringssl/include)
+    target_compile_options(uSockets PUBLIC -pthread)
+    # Note: BoringSSL libraries need to be built separately with "make boringssl"
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/uSockets/boringssl/build/ssl/libssl.a")
+        target_link_libraries(uSockets PUBLIC
+            ${CMAKE_CURRENT_SOURCE_DIR}/uSockets/boringssl/build/ssl/libssl.a
+            ${CMAKE_CURRENT_SOURCE_DIR}/uSockets/boringssl/build/crypto/libcrypto.a
+            pthread
+        )
+    endif()
+elseif(WITH_OPENSSL)
+    target_compile_definitions(uSockets PUBLIC LIBUS_USE_OPENSSL)
+    target_link_libraries(uSockets PUBLIC ssl crypto)
+elseif(WITH_WOLFSSL)
+    target_compile_definitions(uSockets PUBLIC LIBUS_USE_WOLFSSL)
+    target_include_directories(uSockets PUBLIC /usr/local/include)
+    target_link_libraries(uSockets PUBLIC wolfssl)
+else()
+    target_compile_definitions(uSockets PUBLIC LIBUS_NO_SSL)
+endif()
+
+# Event loop configuration for uSockets
+if(WITH_IO_URING)
+    target_compile_definitions(uSockets PUBLIC LIBUS_USE_IO_URING)
+    # Link liburing if available
+    if(EXISTS "/usr/lib/liburing.a")
+        target_link_libraries(uSockets PUBLIC /usr/lib/liburing.a)
+    endif()
+endif()
+
+if(WITH_LIBUV)
+    target_compile_definitions(uSockets PUBLIC LIBUS_USE_LIBUV)
+    target_link_libraries(uSockets PUBLIC uv)
+endif()
+
+if(WITH_ASIO)
+    target_compile_definitions(uSockets PUBLIC LIBUS_USE_ASIO)
+    target_compile_options(uSockets PUBLIC -pthread)
+    target_link_libraries(uSockets PUBLIC pthread)
+endif()
+
+if(WITH_GCD)
+    target_compile_definitions(uSockets PUBLIC LIBUS_USE_GCD)
+    if(APPLE)
+        target_link_libraries(uSockets PUBLIC "-framework CoreFoundation")
+    endif()
+endif()
+
+# QUIC configuration for uSockets
+if(WITH_QUIC)
+    target_compile_definitions(uSockets PUBLIC LIBUS_USE_QUIC)
+    target_include_directories(uSockets PUBLIC uSockets/lsquic/include)
+    target_compile_options(uSockets PUBLIC -pthread)
+    target_link_libraries(uSockets PUBLIC pthread z m)
+    # Link lsquic if available
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/uSockets/lsquic/src/liblsquic/liblsquic.a")
+        target_link_libraries(uSockets PUBLIC
+            ${CMAKE_CURRENT_SOURCE_DIR}/uSockets/lsquic/src/liblsquic/liblsquic.a)
+    endif()
+endif()
+
+# Sanitizer support for uSockets
+if(WITH_ASAN)
+    target_compile_options(uSockets PUBLIC -fsanitize=address -g)
+    target_link_options(uSockets PUBLIC -fsanitize=address)
+endif()
 
 # Create uWebSockets interface library (header-only)
 add_library(uWebSockets INTERFACE)
@@ -144,6 +257,25 @@ endif()
 install(DIRECTORY src/
     DESTINATION ${UWEBSOCKETS_INSTALL_INCLUDEDIR}
     FILES_MATCHING PATTERN "*.h"
+)
+
+# Install uSockets library and headers
+install(TARGETS uSockets
+    EXPORT uSocketsTargets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+install(DIRECTORY uSockets/src/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/uSockets
+    FILES_MATCHING PATTERN "*.h"
+)
+
+install(EXPORT uSocketsTargets
+    FILE uSocketsTargets.cmake
+    NAMESPACE uSockets::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/uSockets
 )
 
 # Export targets for use in other CMake projects
